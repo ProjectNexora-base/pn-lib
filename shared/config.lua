@@ -11,4 +11,5 @@ PnLib.Config = {
 
 if IsDuplicityVersion() then
     PnLib.Config.serverToken = GetConvar('pn_lib:serverToken', '')
-}
+end
+
