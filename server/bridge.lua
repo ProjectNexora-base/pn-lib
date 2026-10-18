@@ -38,33 +38,60 @@ local function httpJson(method, path, body)
 end
 
 ---@param versionCheck table|nil
-local function logVersionCheck(versionCheck)
+---@param inventory table[]|nil
+local function logVersionCheck(versionCheck, inventory)
     if not versionCheck then return end
+
+    local selfName = GetCurrentResourceName()
+    local selfVersion = GetResourceMetadata(selfName, 'version', 0) or '?'
 
     local pn = versionCheck.pnLib
     if pn then
-        local status = pn.ok and 'ok' or 'outdated'
-        print(('[pn-lib] version check: %s (installed=%s expected=%s)'):format(
-            status,
-            tostring(pn.installed or '?'),
-            tostring(pn.expected or '?')
+        local status = pn.ok and 'ok' or 'OUTDATED'
+        print(('[pn-lib] self version: %s (installed=%s expected=%s) → %s'):format(
+            selfName,
+            tostring(pn.installed or selfVersion),
+            tostring(pn.expected or '?'),
+            status
         ))
+    else
+        print(('[pn-lib] self version: %s v%s'):format(selfName, selfVersion))
     end
 
+    local outdatedMap = {}
     local outdated = versionCheck.outdated
-    if type(outdated) == 'table' and #outdated > 0 then
-        print(('[pn-lib] %d resource(s) outdated:'):format(#outdated))
-        for i = 1, math.min(#outdated, 25) do
+    if type(outdated) == 'table' then
+        for i = 1, #outdated do
             local r = outdated[i]
-            print(('  - %s: %s → %s'):format(
+            if r and r.name then
+                outdatedMap[r.name] = r
+            end
+        end
+    end
+
+    inventory = inventory or PnLib.GetResourceInventory()
+    print(('[pn-lib] verified %d resource(s):'):format(#inventory))
+    for i = 1, #inventory do
+        local r = inventory[i]
+        local bad = outdatedMap[r.name]
+        local ver = r.version or '(no version)'
+        if bad then
+            print(('  ✗ %s: %s → expected %s'):format(
                 tostring(r.name),
-                tostring(r.installed or '?'),
-                tostring(r.expected or '?')
+                tostring(bad.installed or ver),
+                tostring(bad.expected or '?')
+            ))
+        else
+            print(('  ✓ %s: v%s [%s]'):format(
+                tostring(r.name),
+                tostring(ver),
+                tostring(r.state or '?')
             ))
         end
-        if #outdated > 25 then
-            print(('  … +%d more'):format(#outdated - 25))
-        end
+    end
+
+    if type(outdated) == 'table' and #outdated > 0 then
+        print(('[pn-lib] %d resource(s) outdated'):format(#outdated))
     elseif versionCheck.summary then
         print(('[pn-lib] %s'):format(tostring(versionCheck.summary)))
     end
@@ -73,10 +100,11 @@ end
 local function heartbeat()
     local list = PnLib.GetPlayers()
     local inventory = PnLib.GetResourceInventory()
+    local selfVersion = GetResourceMetadata(GetCurrentResourceName(), 'version', 0) or '1.0.0'
     local res = httpJson('POST', '/presence', {
         players = list,
         serverTime = os.time(),
-        resourceVersion = GetResourceMetadata(GetCurrentResourceName(), 'version', 0) or '1.0.0',
+        resourceVersion = selfVersion,
         resources = inventory,
     })
     if not res.ok then
@@ -96,16 +124,16 @@ local function heartbeat()
     if res.body and res.body.versionCheck then
         if forceLog or (now - lastVersionLogAt) >= VERSION_LOG_INTERVAL_MS then
             lastVersionLogAt = now
-            logVersionCheck(res.body.versionCheck)
+            logVersionCheck(res.body.versionCheck, inventory)
         end
     end
 end
 
 CreateThread(function()
     Wait(2000)
-    print(('[pn-lib] started v%s — resource inventory enabled'):format(
-        GetResourceMetadata(GetCurrentResourceName(), 'version', 0) or '1.0.0'
-    ))
+    local selfVersion = GetResourceMetadata(GetCurrentResourceName(), 'version', 0) or '1.0.0'
+    print(('[pn-lib] started v%s — verifying resource versions'):format(selfVersion))
+    PnLib.PrintResourceInventory()
     while true do
         if PnLib.Config.apiUrl ~= '' and PnLib.Config.serverToken ~= '' then
             local ok, err = pcall(heartbeat)

@@ -24,4 +24,33 @@ function PnLib.GetResourceInventory()
     return list
 end
 
+--- Print every resource version to the FXServer console (includes pn-lib itself).
+---@param inventory table[]|nil
+function PnLib.PrintResourceInventory(inventory)
+    inventory = inventory or PnLib.GetResourceInventory()
+    local selfName = GetCurrentResourceName()
+    local selfVersion = GetResourceMetadata(selfName, 'version', 0) or '?'
+
+    print(('[pn-lib] === resource inventory (%d) ==='):format(#inventory))
+    print(('[pn-lib] self: %s v%s (state=%s)'):format(
+        selfName,
+        selfVersion,
+        GetResourceState(selfName)
+    ))
+
+    for i = 1, #inventory do
+        local r = inventory[i]
+        local ver = r.version or '(no version)'
+        local mark = r.name == selfName and ' ◀' or ''
+        print(('  [%s] %s  v%s%s'):format(
+            tostring(r.state or '?'),
+            tostring(r.name),
+            tostring(ver),
+            mark
+        ))
+    end
+    print('[pn-lib] === end inventory ===')
+end
+
 exports('GetResourceInventory', PnLib.GetResourceInventory)
+exports('PrintResourceInventory', PnLib.PrintResourceInventory)
