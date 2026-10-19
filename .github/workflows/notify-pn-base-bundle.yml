@@ -1,0 +1,29 @@
+# Ping PN-Base only after Version gate succeeds on main.
+name: Notify PN-Base bundle
+
+on:
+  workflow_run:
+    workflows: ["Version gate"]
+    types: [completed]
+    branches: [main]
+
+jobs:
+  notify:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Repository dispatch to PN-Base
+        env:
+          GH_TOKEN: ${{ secrets.PN_BASE_BUNDLE_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${GH_TOKEN:-}" ]]; then
+            echo "::error::Secret PN_BASE_BUNDLE_TOKEN missing on this mirror repo"
+            exit 1
+          fi
+          SHA="${{ github.event.workflow_run.head_sha }}"
+          REPO="${{ github.repository }}"
+          gh api repos/ProjectNexora-base/PN-Base/dispatches \
+            -f event_type=qbox-resource-updated \
+            -f "client_payload[repo]=${REPO}" \
+            -f "client_payload[sha]=${SHA}"
