@@ -1,0 +1,12 @@
+---
+description: Require fxmanifest version bump on every commit/push
+alwaysApply: true
+---
+
+# Version bump required
+
+Before committing or pushing this FiveM resource:
+
+1. Update `fxmanifest.lua` `version '…'` so it differs from the previous commit.
+2. Prefer semver patch increments for small changes.
+3. Never ship an unchanged version — the version-gate GitHub Action will fail the push.
