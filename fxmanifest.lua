@@ -37,6 +37,25 @@ files {
     'sql/pn_config.sql',
 }
 
+server_exports {
+    'RegisterConfig',
+    'GetConfig',
+    'GetConfigEntry',
+    'GetConfigNamespace',
+    'GetAllConfigEntries',
+    'SetConfig',
+    'DeleteConfig',
+    'OnConfigChange',
+    'PrintConfig',
+    'GetConfigHash',
+    'IsConfigTableOk',
+    'GetPlayers',
+    'RefreshPlayer',
+    'GetResourceInventory',
+    'PrintResourceInventory',
+    'BridgeLastError',
+}
+
 dependencies {
     'ox_lib',
     'oxmysql',
