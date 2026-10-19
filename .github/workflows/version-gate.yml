@@ -1,0 +1,47 @@
+# Fail if fxmanifest version did not change vs the previous commit on main.
+name: Version gate
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  version-changed:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Require fxmanifest version bump
+        run: |
+          set -euo pipefail
+          FX=""
+          for f in fxmanifest.lua __resource.lua; do
+            if [[ -f "$f" ]]; then FX="$f"; break; fi
+          done
+          if [[ -z "$FX" ]]; then
+            echo "::error::No fxmanifest.lua found"
+            exit 1
+          fi
+          extract() {
+            grep -E "^[[:space:]]*version[[:space:]]+" "$1" | head -1 \
+              | sed -E "s/^[[:space:]]*version[[:space:]]+['\"]?//;s/['\"].*$//;s/[[:space:]]+$//"
+          }
+          NEW=$(extract "$FX")
+          if [[ -z "$NEW" ]]; then
+            echo "::error::Could not parse version from $FX"
+            exit 1
+          fi
+          if ! git rev-parse --verify HEAD~1 >/dev/null 2>&1; then
+            echo "First commit — version=$NEW OK"
+            exit 0
+          fi
+          OLD=$(git show "HEAD~1:$FX" 2>/dev/null | grep -E "^[[:space:]]*version[[:space:]]+" | head -1 \
+            | sed -E "s/^[[:space:]]*version[[:space:]]+['\"]?//;s/['\"].*$//;s/[[:space:]]+$//" || true)
+          echo "previous=$OLD current=$NEW"
+          if [[ "$NEW" == "$OLD" ]]; then
+            echo "::error::Version in $FX must change on every push (still '$NEW'). Bump it and push again."
+            exit 1
+          fi
+          echo "Version bumped OK"
