@@ -56,6 +56,33 @@ local function runAction(action)
         })
         return
     end
+
+    if typ == 'config_set' then
+        local payload = action.payload or action
+        if PnLib.ApplyPanelConfigSet then
+            PnLib.ApplyPanelConfigSet(payload)
+        end
+        return
+    end
+
+    if typ == 'config_delete' then
+        local payload = action.payload or action
+        if payload.namespace and payload.key and PnLib.DeleteConfig then
+            PnLib.DeleteConfig(payload.namespace, payload.key)
+        end
+        return
+    end
+
+    if typ == 'config_restore' then
+        local entries = action.payload or action.entries
+        if PnLib.RestoreConfigFromPanel then
+            PnLib.RestoreConfigFromPanel(entries)
+            if PnLib.ForceConfigResync then
+                PnLib.ForceConfigResync()
+            end
+        end
+        return
+    end
 end
 
 AddEventHandler('pn-lib:server:panelActions', function(actions)

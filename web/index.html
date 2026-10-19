@@ -1,18 +1,170 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fr">
   <head>
     <meta charset="UTF-8" />
     <title>pn-lib</title>
     <style>
+      :root {
+        --bg: #0f1419;
+        --panel: #1a222c;
+        --border: #2a3544;
+        --text: #e8eef5;
+        --muted: #8b9bb0;
+        --accent: #3b82f6;
+        --warn: #f59e0b;
+        --danger: #ef4444;
+      }
+      * {
+        box-sizing: border-box;
+      }
       html,
       body {
         margin: 0;
         background: transparent;
         overflow: hidden;
+        font-family: "Segoe UI", system-ui, sans-serif;
+        color: var(--text);
+      }
+      #config-root {
+        display: none;
+        position: fixed;
+        inset: 0;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0, 0, 0, 0.45);
+      }
+      #config-root.open {
+        display: flex;
+      }
+      .panel {
+        width: min(920px, 94vw);
+        max-height: 86vh;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        display: flex;
+        flex-direction: column;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+      }
+      .header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 14px 18px;
+        border-bottom: 1px solid var(--border);
+      }
+      .header h1 {
+        margin: 0;
+        font-size: 16px;
+        font-weight: 600;
+      }
+      .header .meta {
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .body {
+        padding: 12px 18px 18px;
+        overflow: auto;
+      }
+      .ns {
+        margin-top: 14px;
+      }
+      .ns-title {
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--muted);
+        margin-bottom: 8px;
+      }
+      .row {
+        display: grid;
+        grid-template-columns: 1fr 1.2fr auto;
+        gap: 10px;
+        align-items: center;
+        padding: 8px 10px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        margin-bottom: 6px;
+        background: var(--bg);
+      }
+      .row label {
+        font-size: 13px;
+      }
+      .row .hint {
+        display: block;
+        font-size: 11px;
+        color: var(--muted);
+        margin-top: 2px;
+      }
+      .row input,
+      .row textarea {
+        width: 100%;
+        background: #0b1016;
+        border: 1px solid var(--border);
+        color: var(--text);
+        border-radius: 6px;
+        padding: 7px 9px;
+        font-size: 13px;
+      }
+      .badge {
+        display: inline-block;
+        font-size: 10px;
+        padding: 2px 6px;
+        border-radius: 999px;
+        background: rgba(245, 158, 11, 0.15);
+        color: var(--warn);
+        margin-left: 6px;
+      }
+      button {
+        cursor: pointer;
+        border: none;
+        border-radius: 6px;
+        padding: 7px 12px;
+        font-size: 12px;
+        font-weight: 600;
+      }
+      button.save {
+        background: var(--accent);
+        color: white;
+      }
+      button.close {
+        background: transparent;
+        color: var(--muted);
+        border: 1px solid var(--border);
+      }
+      .banner {
+        font-size: 12px;
+        padding: 8px 10px;
+        border-radius: 8px;
+        background: rgba(239, 68, 68, 0.12);
+        color: #fca5a5;
+        margin-bottom: 10px;
+      }
+      .toast {
+        font-size: 12px;
+        color: var(--warn);
+        margin-top: 8px;
+        min-height: 16px;
       }
     </style>
   </head>
   <body>
+    <div id="config-root" aria-hidden="true">
+      <div class="panel" role="dialog" aria-labelledby="config-title">
+        <div class="header">
+          <div>
+            <h1 id="config-title">Configuration PN</h1>
+            <div class="meta" id="config-meta"></div>
+          </div>
+          <button type="button" class="close" id="btn-close">Fermer</button>
+        </div>
+        <div class="body">
+          <div id="banner" class="banner" style="display: none"></div>
+          <div id="list"></div>
+          <div class="toast" id="toast"></div>
+        </div>
+      </div>
+    </div>
     <script src="app.js"></script>
   </body>
 </html>

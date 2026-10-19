@@ -1,8 +1,12 @@
 # pn-lib
 
-PN Base first-party FiveM resource: player presence heartbeat, panel admin actions, WebRTC signaling bridge.
+PN Base first-party FiveM resource: player presence heartbeat, **live configuration store**, panel admin actions, WebRTC signaling bridge.
 
-On start it prints every resource version on the server (including its own). Heartbeats send the inventory to the panel and periodically print a verified OK/outdated list.
+On start it creates/loads MySQL `pn_config`, seeds known convars, prints the config registry and every resource version. Heartbeats sync inventory + config to the panel (~5s). **Never auto-restarts resources.**
+
+## Version
+
+`1.2.0`
 
 ## Convars (`config.cfg`)
 
@@ -12,6 +16,45 @@ On start it prints every resource version on the server (including its own). Hea
 | `pn_lib:serverToken` | Bearer token (written at install) |
 | `pn_lib:iceServers` | JSON ICE servers for WebRTC |
 | `pn_lib:debug` | `1` = log heartbeats + force version dump each cycle |
+
+## Configuration
+
+- **Game DB**: table `pn_config` (see `sql/pn_config.sql`), created on resource start via oxmysql
+- **Panel mirror**: Postgres `server_config_entries` — restore from panel if game table is missing
+- **In-game UI**: `/configpn` (ACE `command.configpn`)
+- **Panel UI**: Project → Configuration
+
+```
+add_ace group.admin command.configpn allow
+```
+
+### Lua exports (config)
+
+```lua
+exports['pn-lib']:RegisterConfig(namespace, schema)
+exports['pn-lib']:GetConfig(namespace, key)
+exports['pn-lib']:GetConfigEntry(namespace, key)
+exports['pn-lib']:GetConfigNamespace(namespace)
+exports['pn-lib']:GetAllConfigEntries()
+exports['pn-lib']:SetConfig(namespace, key, value)
+exports['pn-lib']:DeleteConfig(namespace, key)
+exports['pn-lib']:OnConfigChange(namespace, keyOrStar, handler)
+exports['pn-lib']:PrintConfig(namespace?)
+exports['pn-lib']:GetConfigHash()
+exports['pn-lib']:IsConfigTableOk()
+```
+
+See also `/pn-lib-exports.md` written at the Ptero server root on install.
+
+### Other exports
+
+```lua
+exports['pn-lib']:GetPlayers()
+exports['pn-lib']:RefreshPlayer(source)
+exports['pn-lib']:GetResourceInventory()
+exports['pn-lib']:PrintResourceInventory()
+exports['pn-lib']:BridgeLastError()
+```
 
 ## Bundle
 

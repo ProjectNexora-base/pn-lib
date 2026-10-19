@@ -101,12 +101,21 @@ local function heartbeat()
     local list = PnLib.GetPlayers()
     local inventory = PnLib.GetResourceInventory()
     local selfVersion = GetResourceMetadata(GetCurrentResourceName(), 'version', 0) or '1.0.0'
-    local res = httpJson('POST', '/presence', {
+    local configHash = PnLib.GetConfigHash and PnLib.GetConfigHash() or nil
+    local configTableOk = PnLib.IsConfigTableOk and PnLib.IsConfigTableOk() or false
+    local payload = {
         players = list,
         serverTime = os.time(),
         resourceVersion = selfVersion,
         resources = inventory,
-    })
+        configHash = configHash,
+        configTableOk = configTableOk,
+    }
+    -- Full config dump when dirty / first sync (panel mirrors)
+    if PnLib.ConfigNeedsFullSync and PnLib.ConfigNeedsFullSync() and PnLib.GetAllConfigEntries then
+        payload.configEntries = PnLib.GetAllConfigEntries()
+    end
+    local res = httpJson('POST', '/presence', payload)
     if not res.ok then
         lastError = res.error
         if GetConvarInt('pn_lib:debug', 0) == 1 then
@@ -115,8 +124,14 @@ local function heartbeat()
         return
     end
     lastError = nil
+    if PnLib.MarkConfigSynced and configHash then
+        PnLib.MarkConfigSynced(configHash)
+    end
     if res.body and res.body.actions then
         TriggerEvent('pn-lib:server:panelActions', res.body.actions)
+    end
+    if res.body and res.body.requestConfigFull and type(PnLib.ForceConfigResync) == 'function' then
+        PnLib.ForceConfigResync()
     end
 
     local now = GetGameTimer()
