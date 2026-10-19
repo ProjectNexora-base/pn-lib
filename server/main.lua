@@ -10,7 +10,7 @@ local function collectPlayer(src)
     local license = GetPlayerIdentifierByType and GetPlayerIdentifierByType(src, 'license') or nil
     local discord = GetPlayerIdentifierByType and GetPlayerIdentifierByType(src, 'discord') or nil
 
-    local job, gang = nil, nil
+    local job, gang, cash, bank = nil, nil, nil, nil
     if GetResourceState('qbx_core') == 'started' then
         local ok, player = pcall(function()
             return exports.qbx_core:GetPlayer(src)
@@ -21,6 +21,11 @@ local function collectPlayer(src)
             name = player.PlayerData.charinfo
                 and (('%s %s'):format(player.PlayerData.charinfo.firstname or '', player.PlayerData.charinfo.lastname or '')):gsub('^%s+', '')
                 or name
+            local money = player.PlayerData.money
+            if type(money) == 'table' then
+                cash = tonumber(money.cash)
+                bank = tonumber(money.bank)
+            end
         end
     end
 
@@ -39,6 +44,8 @@ local function collectPlayer(src)
         identifiers = identifiers,
         job = job,
         gang = gang,
+        cash = cash,
+        bank = bank,
         ping = GetPlayerPing(src),
         coords = coords,
         updatedAt = os.time(),

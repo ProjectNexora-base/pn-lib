@@ -11,6 +11,20 @@ local function runAction(action)
         return
     end
 
+    if typ == 'ban' then
+        if src then
+            local reason = action.reason or 'Banned by PN Base'
+            -- Prefer qbx/ox ban if available; always drop the player.
+            if GetResourceState('qbx_core') == 'started' then
+                pcall(function()
+                    exports.qbx_core:ExploitBan(src, reason)
+                end)
+            end
+            DropPlayer(src, reason)
+        end
+        return
+    end
+
     if typ == 'message' then
         if src then
             TriggerClientEvent('ox_lib:notify', src, {
