@@ -75,6 +75,31 @@
         letter-spacing: 0.06em;
         color: var(--muted);
         margin-bottom: 8px;
+        cursor: pointer;
+        user-select: none;
+      }
+      .search {
+        width: 100%;
+        background: #0b1016;
+        border: 1px solid var(--border);
+        color: var(--text);
+        border-radius: 6px;
+        padding: 8px 10px;
+        font-size: 13px;
+        margin-bottom: 4px;
+      }
+      .row select {
+        width: 100%;
+        background: #0b1016;
+        border: 1px solid var(--border);
+        color: var(--text);
+        border-radius: 6px;
+        padding: 7px 9px;
+        font-size: 13px;
+      }
+      .row input[type="checkbox"] {
+        width: 20px;
+        height: 20px;
       }
       .row {
         display: grid;
@@ -159,6 +184,13 @@
           <button type="button" class="close" id="btn-close">Fermer</button>
         </div>
         <div class="body">
+          <input
+            id="config-search"
+            class="search"
+            type="search"
+            placeholder="Rechercher un réglage (ressource, nom, description)…"
+            autocomplete="off"
+          />
           <div id="banner" class="banner" style="display: none"></div>
           <div id="list"></div>
           <div class="toast" id="toast"></div>

@@ -43,6 +43,8 @@ const metaEl = document.getElementById("config-meta");
 const bannerEl = document.getElementById("banner");
 const toastEl = document.getElementById("toast");
 const btnClose = document.getElementById("btn-close");
+const searchEl = document.getElementById("config-search");
+if (searchEl) searchEl.addEventListener("input", () => render(lastPayload));
 
 function closeConfigUiOnly() {
   if (root) {
@@ -66,7 +68,67 @@ function groupByNamespace(items) {
   return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
 }
 
+const ERROR_LABELS = {
+  invalid_number: "Nombre invalide",
+  invalid_boolean: "Valeur oui/non invalide",
+  invalid_json: "JSON invalide",
+  not_in_options: "Valeur non autorisée",
+  forbidden: "Permission refusée",
+};
+
+function describeError(code) {
+  const raw = String(code || "");
+  if (raw.startsWith("below_min:")) return `Minimum : ${raw.split(":")[1]}`;
+  if (raw.startsWith("above_max:")) return `Maximum : ${raw.split(":")[1]}`;
+  return ERROR_LABELS[raw] || raw || "Échec";
+}
+
+/* Champ adapté au type de la clé ; getValue() renvoie la valeur à envoyer. */
+function buildInput(row) {
+  const type = row.valueType || "string";
+  if (type === "boolean") {
+    const box = document.createElement("input");
+    box.type = "checkbox";
+    box.checked = row.value === true || row.value === "true" || row.value === "1" || row.value === 1;
+    return { el: box, getValue: () => box.checked };
+  }
+  if (type === "number") {
+    const num = document.createElement("input");
+    num.type = "number";
+    num.step = "any";
+    if (row.min != null) num.min = String(row.min);
+    if (row.max != null) num.max = String(row.max);
+    num.value = row.value == null ? "" : String(row.value);
+    return { el: num, getValue: () => num.value };
+  }
+  if (Array.isArray(row.options) && row.options.length > 0) {
+    const sel = document.createElement("select");
+    for (const opt of row.options) {
+      const o = document.createElement("option");
+      o.value = String(opt);
+      o.textContent = String(opt);
+      sel.appendChild(o);
+    }
+    sel.value = row.value == null ? "" : String(row.value);
+    return { el: sel, getValue: () => sel.value };
+  }
+  const text = document.createElement("input");
+  text.type = "text";
+  text.value = row.value == null ? "" : String(row.value);
+  return { el: text, getValue: () => text.value };
+}
+
+let lastPayload = {};
+const openNamespaces = new Set();
+
+function matches(row, term) {
+  if (!term) return true;
+  const hay = `${row.namespace} ${row.key} ${row.label || ""} ${row.description || ""}`.toLowerCase();
+  return hay.includes(term);
+}
+
 function render(payload) {
+  lastPayload = payload;
   const entries = Array.isArray(payload.entries) ? payload.entries : [];
   if (metaEl) {
     const hash = String(payload.hash || "");
@@ -84,13 +146,25 @@ function render(payload) {
     }
   }
   if (!listEl) return;
+  const term = (searchEl ? searchEl.value : "").trim().toLowerCase();
   listEl.innerHTML = "";
-  for (const [ns, rows] of groupByNamespace(entries)) {
-    const wrap = document.createElement("div");
+  let shown = 0;
+  for (const [ns, allRows] of groupByNamespace(entries)) {
+    const rows = allRows.filter((r) => matches(r, term));
+    if (rows.length === 0) continue;
+    shown += rows.length;
+    const wrap = document.createElement("details");
     wrap.className = "ns";
-    const title = document.createElement("div");
+    // Recherche active : tout est déplié ; sinon on mémorise les groupes ouverts.
+    wrap.open = term !== "" || openNamespaces.has(ns);
+    wrap.addEventListener("toggle", () => {
+      if (term !== "") return;
+      if (wrap.open) openNamespaces.add(ns);
+      else openNamespaces.delete(ns);
+    });
+    const title = document.createElement("summary");
     title.className = "ns-title";
-    title.textContent = ns;
+    title.textContent = `${ns} (${rows.length})`;
     wrap.appendChild(title);
     for (const row of rows) {
       const el = document.createElement("div");
@@ -105,15 +179,16 @@ function render(payload) {
         lab.appendChild(badge);
       }
       labelCol.appendChild(lab);
-      if (row.description) {
+      const hintText = [row.description, row.min != null || row.max != null ? `[${row.min ?? "…"} – ${row.max ?? "…"}]` : null]
+        .filter(Boolean)
+        .join(" ");
+      if (hintText) {
         const hint = document.createElement("span");
         hint.className = "hint";
-        hint.textContent = row.description;
+        hint.textContent = hintText;
         labelCol.appendChild(hint);
       }
-      const input = document.createElement("input");
-      input.type = "text";
-      input.value = row.value == null ? "" : String(row.value);
+      const field = buildInput(row);
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "save";
@@ -123,10 +198,10 @@ function render(payload) {
         const result = await nuiPost("config:set", {
           namespace: row.namespace,
           key: row.key,
-          value: input.value,
+          value: field.getValue(),
         });
         if (!result || !result.ok) {
-          toastEl.textContent = (result && result.error) || "Échec";
+          toastEl.textContent = describeError(result && result.error);
           return;
         }
         if (result.requiresRestart) {
@@ -145,11 +220,17 @@ function render(payload) {
         }
       });
       el.appendChild(labelCol);
-      el.appendChild(input);
+      el.appendChild(field.el);
       el.appendChild(btn);
       wrap.appendChild(el);
     }
     listEl.appendChild(wrap);
+  }
+  if (shown === 0) {
+    const empty = document.createElement("div");
+    empty.className = "hint";
+    empty.textContent = term ? "Aucun réglage ne correspond à la recherche." : "Aucun réglage enregistré.";
+    listEl.appendChild(empty);
   }
 }
 
