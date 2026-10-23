@@ -6,7 +6,7 @@ On start it creates/loads MySQL `pn_config`, seeds known convars, prints the con
 
 ## Version
 
-`1.2.0`
+`1.3.0`
 
 ## Convars (`config.cfg`)
 
@@ -27,6 +27,10 @@ On start it creates/loads MySQL `pn_config`, seeds known convars, prints the con
 ```
 add_ace group.admin command.configpn allow
 ```
+
+### Convar safety
+
+A config entry only mirrors to a convar when the convar is named `<namespace>:<name>` with the **same namespace** as the entry, and the name does not look like a secret (`token`, `secret`, `password`, `license`, `apikey`, `rcon`, `connection_string`). Core FXServer convars (`sv_*`, `rcon_password`, `mysql_connection_string`, ...) can therefore never be written from the panel, and `pn_lib:serverToken` is only ever read from `config.cfg`. Refusals are logged with `pn_lib:debug 1`.
 
 ### Lua exports (config)
 

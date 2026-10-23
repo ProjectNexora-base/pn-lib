@@ -102,13 +102,38 @@ local function fireChange(namespace, key, entry, oldValue)
     TriggerEvent('pn-lib:configChanged', namespace, key, entry and entryToPayload(entry) or nil, oldValue)
 end
 
+--- Convars that must never be replicated to clients nor written from the panel.
+local SENSITIVE_CONVAR_PATTERNS = { 'token', 'secret', 'password', 'passwd', 'license', 'apikey', 'api_key', 'connection_string', 'rcon' }
+
+--- A convar is only applied when it is namespaced like its entry (`<namespace>:<name>`).
+--- This keeps core FXServer convars (sv_*, rcon_password, mysql_connection_string, ...) out of reach
+--- of panel-provided metadata.
+---@param entry table
+---@return boolean
+local function isConvarAllowed(entry)
+    local convar = entry.convar
+    if type(convar) ~= 'string' or convar == '' then return false end
+    local prefix, name = convar:match('^([%w_%-]+):([%w_%-%.]+)$')
+    if not prefix or prefix ~= entry.namespace then return false end
+    local lowered = name:lower()
+    for i = 1, #SENSITIVE_CONVAR_PATTERNS do
+        if lowered:find(SENSITIVE_CONVAR_PATTERNS[i], 1, true) then return false end
+    end
+    return true
+end
+
 local function applyConvar(entry)
     if not entry or not entry.convar or entry.convar == '' then return end
     if entry.requiresRestart then return end
     local val = entry.value
-    -- setr-style keys use SetConvarReplicated when possible
-    if entry.convar:find('pn_lib:serverToken', 1, true) then
-        SetConvar(entry.convar, val)
+    -- pn_lib:serverToken is server-only: never replicated, always accepted from config.cfg only.
+    if entry.convar == 'pn_lib:serverToken' then
+        return
+    end
+    if not isConvarAllowed(entry) then
+        if GetConvarInt('pn_lib:debug', 0) == 1 then
+            print(('[pn-lib] convar %s refused for %s.%s'):format(tostring(entry.convar), tostring(entry.namespace), tostring(entry.key)))
+        end
         return
     end
     SetConvarReplicated(entry.convar, val)

@@ -5,7 +5,7 @@ lua54 'yes'
 name 'pn-lib'
 author 'Project Nexora'
 description 'PN Base bridge — presence, live config, panel sync, WebRTC'
-version '1.2.0'
+version '1.3.0'
 
 shared_scripts {
     '@ox_lib/init.lua',
