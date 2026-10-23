@@ -70,7 +70,8 @@ lib.callback.register('pn-lib:config:set', function(source, payload)
     local ok, flag = PnLib.SetConfig(payload.namespace, payload.key, payload.value, 'game')
     return {
         ok = ok,
-        requiresRestart = flag == 'requires_restart',
+        error = (not ok) and tostring(flag) or nil,
+        requiresRestart = ok and flag == 'requires_restart',
         entries = PnLib.GetAllConfigEntries(),
         hash = PnLib.GetConfigHash(),
     }

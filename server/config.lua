@@ -72,9 +72,50 @@ local function entryToPayload(entry)
         description = entry.description,
         requiresRestart = entry.requiresRestart and true or false,
         convar = entry.convar,
+        min = entry.min,
+        max = entry.max,
+        options = entry.options,
         updatedBy = entry.updatedBy,
         updatedAt = entry.updatedAt,
     }
+end
+
+--- Validates a value against its declared type/bounds before it is stored.
+---@param valueType string
+---@param value any
+---@param min number|nil
+---@param max number|nil
+---@param options string[]|nil
+---@return boolean ok, string|nil err
+local function validateValue(valueType, value, min, max, options)
+    if valueType == 'number' then
+        local n = tonumber(value)
+        if n == nil or n ~= n or n == math.huge or n == -math.huge then return false, 'invalid_number' end
+        if min ~= nil and n < min then return false, ('below_min:%s'):format(min) end
+        if max ~= nil and n > max then return false, ('above_max:%s'):format(max) end
+        return true
+    end
+    if valueType == 'boolean' then
+        local v = value
+        if v == true or v == false or v == 1 or v == 0 or v == 'true' or v == 'false' or v == '1' or v == '0' then
+            return true
+        end
+        return false, 'invalid_boolean'
+    end
+    if valueType == 'json' then
+        if type(value) == 'table' then return true end
+        local ok = pcall(json.decode, tostring(value))
+        if not ok then return false, 'invalid_json' end
+        return true
+    end
+    if type(options) == 'table' and #options > 0 then
+        local s = tostring(value)
+        for i = 1, #options do
+            if options[i] == s then return true end
+        end
+        return false, 'not_in_options'
+    end
+    return true
 end
 
 local function computeHash()
@@ -157,6 +198,9 @@ local function upsertMemory(def, fromDb)
         description = def.description or (existing and existing.description) or nil,
         requiresRestart = def.requiresRestart == true or def.requires_restart == true,
         convar = def.convar or (existing and existing.convar) or nil,
+        min = def.min or (existing and existing.min) or nil,
+        max = def.max or (existing and existing.max) or nil,
+        options = def.options or (existing and existing.options) or nil,
         updatedBy = def.updatedBy or def.updated_by or 'seed',
         updatedAt = def.updatedAt or os.time(),
     }
@@ -394,6 +438,16 @@ function PnLib.SetConfig(namespace, key, value, updatedBy)
     local existing = cache[cacheKey(namespace, key)]
     local sch = schemas[namespace] and schemas[namespace][key]
     local valueType = (existing and existing.valueType) or (sch and sch.valueType) or 'string'
+    local okValue, valueErr = validateValue(
+        valueType,
+        value,
+        (existing and existing.min) or (sch and sch.min),
+        (existing and existing.max) or (sch and sch.max),
+        (existing and existing.options) or (sch and sch.options)
+    )
+    if not okValue then
+        return false, valueErr
+    end
     local entry = upsertMemory({
         namespace = namespace,
         key = key,
@@ -444,6 +498,9 @@ function PnLib.RegisterConfig(namespace, schema)
                 valueType = def.valueType or def.type or 'string',
                 requiresRestart = def.requiresRestart == true,
                 convar = def.convar,
+                min = tonumber(def.min),
+                max = tonumber(def.max),
+                options = type(def.options) == 'table' and def.options or nil,
                 default = def.default,
             }
             local ck = cacheKey(namespace, key)
@@ -461,6 +518,9 @@ function PnLib.RegisterConfig(namespace, schema)
                     description = schemas[namespace][key].description,
                     requiresRestart = schemas[namespace][key].requiresRestart,
                     convar = schemas[namespace][key].convar,
+                    min = schemas[namespace][key].min,
+                    max = schemas[namespace][key].max,
+                    options = schemas[namespace][key].options,
                     updatedBy = 'seed',
                 }, false)
                 persistEntry(entry)
@@ -472,6 +532,9 @@ function PnLib.RegisterConfig(namespace, schema)
                 e.requiresRestart = schemas[namespace][key].requiresRestart
                 e.convar = schemas[namespace][key].convar or e.convar
                 e.valueType = schemas[namespace][key].valueType or e.valueType
+                e.min = schemas[namespace][key].min
+                e.max = schemas[namespace][key].max
+                e.options = schemas[namespace][key].options
             end
         end
     end
@@ -517,7 +580,10 @@ function PnLib.RestoreConfigFromPanel(entries)
     for i = 1, #entries do
         local e = entries[i]
         if e and e.namespace and e.key then
-            PnLib.SetConfig(e.namespace, e.key, e.value, 'panel')
+            local okSet, setErr = PnLib.SetConfig(e.namespace, e.key, e.value, 'panel')
+            if not okSet then
+                print(('[pn-lib] restore %s.%s skipped: %s'):format(tostring(e.namespace), tostring(e.key), tostring(setErr)))
+            end
             -- Also refresh metadata from panel payload
             local ck = cacheKey(e.namespace, e.key)
             local mem = cache[ck]
@@ -526,7 +592,8 @@ function PnLib.RestoreConfigFromPanel(entries)
                 if e.description then mem.description = e.description end
                 if e.requiresRestart ~= nil then mem.requiresRestart = e.requiresRestart end
                 if e.convar then mem.convar = e.convar end
-                if e.valueType then mem.valueType = e.valueType end
+                local declared = schemas[e.namespace] and schemas[e.namespace][e.key]
+                if e.valueType and not declared then mem.valueType = e.valueType end
                 persistEntry(mem)
             end
         end
@@ -539,7 +606,13 @@ function PnLib.ApplyPanelConfigSet(payload)
     local ns = payload.namespace
     local key = payload.key
     if not ns or not key then return end
-    PnLib.SetConfig(ns, key, payload.value, 'panel')
+    local okSet, setErr = PnLib.SetConfig(ns, key, payload.value, 'panel')
+    if not okSet then
+        print(('[pn-lib] panel config %s.%s refused: %s'):format(tostring(ns), tostring(key), tostring(setErr)))
+        -- The panel mirror holds the refused value: push the real one back on the next heartbeat.
+        PnLib.ForceConfigResync()
+        return
+    end
     local ck = cacheKey(ns, key)
     local mem = cache[ck]
     if mem then
@@ -547,7 +620,9 @@ function PnLib.ApplyPanelConfigSet(payload)
         if payload.description ~= nil then mem.description = payload.description end
         if payload.requiresRestart ~= nil then mem.requiresRestart = payload.requiresRestart end
         if payload.convar ~= nil then mem.convar = payload.convar end
-        if payload.valueType then mem.valueType = payload.valueType end
+        -- Keys declared by a resource keep the type chosen by that resource.
+        local declared = schemas[ns] and schemas[ns][key]
+        if payload.valueType and not declared then mem.valueType = payload.valueType end
         persistEntry(mem)
     end
 end
